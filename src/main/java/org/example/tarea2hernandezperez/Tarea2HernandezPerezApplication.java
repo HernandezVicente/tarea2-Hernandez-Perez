@@ -7,7 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class Tarea2HernandezPerezApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(Tarea2HernandezPerezApplication.class, args);
+        SpringApplication.run(
+                Tarea2HernandezPerezApplication.class,
+                args);
     }
-
 }
