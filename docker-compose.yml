@@ -13,6 +13,7 @@ services:
       APP_PORT: "${APP_PORT:-3001}"
       APP_ENV: production
       CSV_PATH: /data/compras.csv
+      JAVA_TOOL_OPTIONS: "-Dhttps.protocols=TLSv1.2"
 
     volumes:
       - type: bind
