@@ -5,11 +5,15 @@ import org.example.tarea2hernandezperez.services.CompraService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.ArrayList;
 
+@RestController
+@RequestMapping("/compras")
 public class CompraController {
 
     private final CompraService compraService;
@@ -18,25 +22,24 @@ public class CompraController {
         this.compraService = compraService;
     }
 
-    // Desafío 1: GET /compras/{unidad}
     @GetMapping("/{unidad}")
     public ResponseEntity<?> obtenerComprasPorUnidad(@PathVariable String unidad) {
-        // Validar que la unidad sea válida (uf o dolar, insensible a mayúsculas)
         String unidadUpper = unidad.toUpperCase();
         if (!unidadUpper.equals("UF") && !unidadUpper.equals("USD") && !unidadUpper.equals("DOLAR")) {
             return ResponseEntity.badRequest().body(Map.of("error", "Unidad no válida. Use 'uf' o 'dolar'."));
         }
 
-        // Normalizar a formato estándar si ingresan dolar
-        String unidadBusqueda = unidadUpper.equals("DOLAR") ? "USD" : unidadUpper;
+        // Si consultan dolar, normalizamos la salida a USD como pide el requerimiento
+        String unidadRespuesta = unidadUpper.equals("DOLAR") ? "USD" : unidadUpper;
+        String unidadBusqueda = unidadUpper.equals("DOLAR") ? "dolar" : "UF";
 
         List<Compra> todas = compraService.leerCsv();
-        List<Map<String, Object>> comprasFiltradas = new java.util.ArrayList<>();
+        List<Map<String, Object>> comprasFiltradas = new ArrayList<>();
         long totalPesos = 0;
 
         for (Compra c : todas) {
-            if (c.getUnidad().equalsIgnoreCase(unidadBusqueda)) {
-                double valorUnidad = compraService.obtenerValorIndicador(unidadBusqueda, c.getFecha());
+            if (c.getUnidad().equalsIgnoreCase(unidadBusqueda) || (unidadBusqueda.equals("dolar") && c.getUnidad().equalsIgnoreCase("USD"))) {
+                double valorUnidad = compraService.obtenerValorIndicador(c.getUnidad(), c.getFecha());
                 long montoPesos = Math.round(c.getMonto() * valorUnidad);
                 totalPesos += montoPesos;
 
@@ -53,7 +56,7 @@ public class CompraController {
         }
 
         Map<String, Object> respuesta = new HashMap<>();
-        respuesta.put("unidad", unidadBusqueda);
+        respuesta.put("unidad", unidadRespuesta);
         respuesta.put("compras", comprasFiltradas);
         respuesta.put("total_pesos", totalPesos);
 

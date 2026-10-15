@@ -1,12 +1,12 @@
 package org.example.tarea2hernandezperez.services;
 
 import org.example.tarea2hernandezperez.models.Compra;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
+import org.springframework.web.client.RestClient;
 import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -16,29 +16,27 @@ import java.util.Map;
 @Service
 public class CompraService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Value("${csv.path:compras.csv}")
+    private String csvPath;
 
-    // Obtiene la ruta del CSV desde la variable de entorno CSV_PATH, o usa "compras.csv" por defecto en la raíz
-    private String getCsvPath() {
-        String path = System.getenv("CSV_PATH");
-        return (path != null && !path.isEmpty()) ? path : "compras.csv";
-    }
+    private final RestClient restClient = RestClient.create();
 
-    // Lee todas las compras del archivo CSV manteniendo el orden original
     public List<Compra> leerCsv() {
         List<Compra> compras = new ArrayList<>();
-        String archivo = getCsvPath();
+        Path path = Path.of(csvPath);
 
-        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
+        if (!Files.exists(path)) {
+            return compras;
+        }
+
+        try (BufferedReader br = Files.newBufferedReader(path)) {
             String linea;
-            boolean primeraLinea = true; // Para saltar la cabecera si la tiene
+            boolean primeraLinea = true;
             while ((linea = br.readLine()) != null) {
                 if (primeraLinea) {
-                    primeraLinea = false;
-                    // Si tu CSV tiene cabecera y la quieres saltar, descomenta esta línea.
-                    // Si no tiene cabecera, bórrala.
-                    // O puedes validar si la primera línea contiene letras en el ID.
-                    if (linea.toLowerCase().contains("id")) continue;
+                    primeraLinea = false; // Saltar cabecera si la tiene
+                    // Si tu CSV no tiene cabecera, elimina esta validación
+                    // O si la primera línea es datos, coméntalo. Depende de tu CSV.
                 }
 
                 String[] partes = linea.split(",");
@@ -52,28 +50,37 @@ public class CompraService {
                     compras.add(new Compra(id, producto, monto, unidad, fecha));
                 }
             }
-        } catch (IOException e) {
-            System.err.println("Error al leer el archivo CSV: " + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
         return compras;
     }
 
-    // Consulta el valor de la UF o Dólar para una fecha específica en mindicador.cl
     public double obtenerValorIndicador(String unidad, LocalDate fecha) {
-        String tipo = unidad.equalsIgnoreCase("uf") ? "uf" : "dolar";
         String fechaFormateada = fecha.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
-        String url = "https://mindicador.cl/api/" + tipo + "/" + fechaFormateada;
+        // mindicador usa 'dolar' y 'uf' en minúscula en su API
+        String indicador = unidad.equalsIgnoreCase("USD") || unidad.equalsIgnoreCase("DOLAR") ? "dolar" : "uf";
+        String url = "https://mindicador.cl/api/" + indicador + "/" + fechaFormateada;
 
         try {
-            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
-            if (response != null && response.containsKey(tipo)) {
-                Map<String, Object> detalle = (Map<String, Object>) response.get(tipo);
-                if (detalle != null && detalle.containsKey("valor")) {
-                    return Double.parseDouble(detalle.get("valor").toString());
+            Map<String, Object> response = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (response != null && response.containsKey("serie")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> serie = (List<Map<String, Object>>) response.get("serie");
+                if (serie != null && !serie.isEmpty()) {
+                    Object valor = serie.get(0).get("valor");
+                    if (valor instanceof Number) {
+                        return ((Number) valor).doubleValue();
+                    }
                 }
             }
         } catch (Exception e) {
-            // Si falla la API o no hay datos para ese día
+            // Manejo de errores de conexión o feriados sin valor
         }
         return 0.0;
     }
