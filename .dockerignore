@@ -1,0 +1,17 @@
+# Archivos compilados localmente
+target/
+out/
+
+# Git y configuración del IDE
+.git/
+.idea/
+*.iml
+
+# Configuración local
+.env
+
+# El CSV se monta al ejecutar; no se incluye en la imagen
+**/*.csv
+
+# Registros
+*.log
